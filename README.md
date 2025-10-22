@@ -1,15 +1,3 @@
-# Project Name
+# Optimizations
 
-**Project Name** project description
----
-
-## 🛠️ Install and Setting ...
-
-### 1. Install
-
----
-
-### 2. Setting
-
-
----
+Explain your optimizations if applicable

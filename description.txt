@@ -1,0 +1,307 @@
+General Info
+You must read fully and carefully the assignment specification and instructions.
+Course: COMP20003 Algorithms and Data Structures @ Semester 2, 2025
+Deadline Submission: Friday 24th October 2025 @ 5pm (end of Week 12)
+Course eight: 15%
+Assignment type: individual
+ILOs covered: 2, 4
+Submission method: via ED
+
+Purpose 
+The purpose of this assignment is for you to:
+Increase your proficiency in C programming, your dexterity with dynamic memory allocation and your understanding of data structures, through programming a search algorithm over Graphs.
+Gain experience with applications of graphs and graph algorithms to solving combinatorial games, one form of artificial intelligence.
+
+Iterated Width (IW) Search
+Iterative Deepening is a search algorithm that works similarly to depth-first search, but with a small change, whenever we reach the current depth limit, the search does not generate any successors (next moves). Once no more search nodes are generated, the search stops and we increase the depth limit by one, then repeat the search from the start.
+
+Iterated Width Search is a search algorithm that works similarly to breadth-first search, but any node which is reached which has been seen before does not generate any successors. A more nuanced version of "seen before", known as novelty, is how this algorithm makes its gains. For this algorithm, any node which has a higher novelty rank than the current width limit of the search does not generate any successors. A state which has been fully seen before has maximum novelty rank. Once no more search nodes are generated, the search stops and we increase the width by one, then repeat the search.
+
+To discuss what novelty actually is, we need to introduce the idea of atoms, which are pieces of information that can be true. For example, in the puzzle, an atom could be at(1,3,2), which could mean that the piece 1 is at position (3, 2) on the board.
+
+The novelty of a state is the size of the smallest combination of atoms that have been true together for the first time. For example:
+
+If at(1,3,2) has never been true until this state, the novelty is 1, because we only need to look at one atom to see something we haven't seen before. 
+
+If the piece 1 has been at (3,2) and the piece 2 has been at (2,3) separately before, but piece 1 has never been at (3,2) with piece 2 at (2,3) before, then the novelty is 2, because we need to look at this combination of two atoms to see something we haven't seen before.
+
+If at(1,3,2), at(2,2,3) and at(3,3,3) are all true in a given state, and all combinations of those pairs (i.e. at(1,3,2) and at(2,2,3), at(1,3,2) and at(3,3,3) , at(2,2,3) and  at(3,3,3)) have been true in previous states, but this state is the first time we've seen these three atoms true together, then the novelty is 3, because we need to look at this combination of three atoms to see something we haven't seen before.
+
+In Iterated Width (IW) search, we start at width 1 (referred to as IW(1)), and then increase the width after the search generates no new nodes and restart from the root. The maximum novelty of a state is the maximum number of atoms that can be true in any state + 1. This value is assigned to a state if all its combination of atoms have been seen before in the search. When the maximum width k = max number of atoms is used, IW(k) becomes a breadth first search of the full problem with duplicate states excluded.
+
+As you can see, the other branch of the tree would also be able to solve the yellow block trying to reach a goal in a similar position on the bottom of the board if that were instead the goal. However, with IW(1), we wouldn't find a solution to both of these simultaneously as the branches are different states. To not exclude these states in this problem, we would need to perform an IW(2) search. If the goal was to get the yellow block to the green space (i.e. impossible), the Iterated Width search with a novelty limit of 2 (IW(2)) would need to be completed to determine that the problem was unsolvable.
+
+The Algorithm
+A configuration of the Impassable Gate puzzle is specified by the location of walls and pieces. A configuration is called a state. The Impassable Graph 
+G=⟨V,E⟩ is implicitly defined. The vertex set V is defined as all the possible configurations (states), and the edges 
+E connecting two vertexes are defined by the legal movements (piece movements). All edges have a weight of 1.
+
+Your task is to find the path traversing the Impassable Graph from the initial state (vertex) leading to a state (vertex) where Professor Layton and Little Luke are in the goal position. The best path is the shortest path. A path is a sequence of movements. You are going to use Uniform Cost Search (Dijkstra for a single goal) to find the shortest path first, along with algorithmic optimizations to speed up your solution.
+
+When the AI solver is called (Algorithm 1), it should explore all possible paths (sequence of move actions) following the Uniform Cost Search strategy, until a path solving the puzzle is found. The algorithm should return the best solution found. This path will then be executed by the puzzle engine if the option play_solution was used as an argument.
+
+We will also ignore states where the piece doesn't move as a result of a part of the piece moving towards an adjacent wall, or towards an adjacent piece (line 16).
+
+
+The recommended first optimisation is to eliminate states that have been fully seen before. If a state was already expanded (popped from the queue), we do not include it again in the queue (line 22 in Algorithm 2). Further optimisations are possible.
+
+
+The recommended second optimisation is to perform an Iterated Width (IW) search, to eliminate states that have been partially seen before. If all parts of the state have already been seen in a state already expanded (popped from the queue), we do not include the state again in the queue (line 30 in Algorithm 3). Further optimisations are possible.
+
+You might have multiple paths leading to a solution. Your algorithm should consider the possible actions (line 15, Alg. 3) in the following order: first by changes in the piece, then by changes in the y-axis, then by changes in the x-axis (i.e. picking moves by piece, then in the order left-to-right along the top row, then left-to-right along the second row, etc.). This will produce one unique ordering for un-optimised code which may be valuable for testing the correctness of your solution.
+
+Make sure you manage the memory well. When you finish running the algorithm, you have to free all the nodes from memory, otherwise you will have memory leaks. You will notice that the algorithm can run out of memory fairly fast after expanding millions of nodes.
+
+The applyAction creates a new node, that
+
+points to the parent, 
+
+updates the state with the action chosen, 
+
+updates the depth of the node,
+
+updates the priority (potentially used by the priority queue) of the node to be the node's depth 
+d (if the node is the d(th) step of the path, then its priority is d).
+
+updates the action used to create the node.
+
+This pseudocode function isn't provided, you are welcome to add lightweight states which only carry this information, or may utilise the gate_t structure directly and manage this information via other methods (e.g. implicit parent node specification by storing a solution string of all steps taken, and priority, depth and action implicitly defined by some other means).
+
+Check the file movement.c and radix.h where you'll find many of the functions in the algorithm already implemented. Other useful functions are located directly in the file ai.c , which is the only file you need to edit to write your algorithm, inside the function findSolution. Look for the comment FILL IN. All the algorithm related files are in the folder src/ai/.
+
+Deliverables
+Deliverable 1 - Solver source code
+You are expected to hand in the source code for your solver, written in C. Obviously, your source code is expected to compile and execute flawlessly using the following makefile command: make generating an executable called gate. Remember to compile using the optimization flag gcc -g -O3 for doing your experiments, it will run twice as quickly as compiling only with the debugging flag gcc -g (see Makefile, and change the CC variable accordingly). For the submission, please submit your makefile with the gcc -g option, as our scripts need this flag for testing. Your program must not be compiled under any flags that prevents it from working under gdb or valgrind.
+
+Your implementation should work well over the capability layouts, but it will not be expected to find a solution to any arbitrary layout, as some layouts may exceed the available RAM in your computer before finding a solution. To test with other maps (e.g. to debug a particular solution path), all you have to do is to copy and paste a single map into a new file, and then call it with your solver.
+
+Deliverable 2 – Experimentation 
+Besides handing in the solver source code, you’re required to provide a table reporting for each puzzle (for each of the three algorithms) at least:
+
+The execution time.
+
+The number of generated nodes.
+
+The auxiliary memory usage.
+
+The number of pieces in the puzzle.
+
+The number of steps in the smallest solution.
+
+The number of open spaces on the board.
+
+For Algorithm 3, also add:
+
+The width during iterated width that the solution was found at.
+
+You may represent this as multiple tables if you like.
+
+Include in the table only the puzzles that your solver finds a solution to. Note that, as with Assignment 2, small values, such as attributes of the capability tests, may make it difficult to capture complexity trends, so solving the larger tests will be necessary to capture meaningful relationships.
+
+Plot three scatterplot/line figures, one for each algorithm, where the x-axis is the theoretical worst-case performance based on the input properties (pieces in the puzzle, steps of the smallest solution, open spaces on the board, minimum width during iterated width to find a solution) and the y-axis is the number of generated nodes.
+
+You may choose what to plot for showing the space complexity, recommended is an approach which generates four scatterplot/line figures:
+
+Three figures, one for each algorithm, where the x-axis is the theoretical space usage of each algorithm, and the y-axis is the actual space usage (both for expanded nodes and auxiliary memory usage).
+
+One additional figure, plotting all three algorithms against each other, showing the comparative performance. Where the x-axis is the theoretical space usage of Algorithm 1, and the y-axis is the actual space usage of each algorithm.
+
+Explain your results using your figures and tables.
+
+Answer the questions:
+
+Which time complexity growth does your data appear to show and does this match the theory? 
+
+What's the memory usage (space) complexity growth of Algorithm 2 and 3, do they decrease the growth rate compared to Algorithm 1? (Answer this theoretically even if you did not implement the algorithms). Note that the theoretical time complexities of the approaches are already noted in the Impassable Gate Intro slide, so do not need to be noted here.
+
+Answer concisely.
+
+If you decide to implement any further optimization beyond the instructions of the assignment, or change the default arguments please discuss their impact in the experimentation section as well.
+
+My recommendation is that you generate the plots using any standard Python visualization library. See for example Seaborn or Matplotlib. Otherwise, there's always the old-school excel/open-office/google-sheets method.
+
+Deliverable 3 - Submission Certification Form
+
+Marking Alignment with Standards
+Assignment standards are divided into three different components, with similar evidence supporting those in the same component. 
+Solver (6)
+Finds solution for capability test cases (4)
+No Memory Errors (1)
+No Memory Leaks (1)
+Duplicate State Detection (2)
+Novelty Detection (2)
+Experimentation (3)
+Code Style (2)
+Please note that you should be ready to answer any question we might have on the details of your assignment solution by e-mail, or even attending a brief interview with me, in order to clarify any doubts we might have.
+We will follow the same Standards-based Ungrading approach used for Assignments 1 and 2.
+Note that not all marks are expected to involve the same time commitment.
+
+Assignment 3 Marking Alignment
+Assignment ILOs relevant:
+ILOs covered: 2, 4
+
+ILO 2. Reason about and evaluate the efficiency behaviour of a given algorithm
+
+This maps primarily to purpose 1, "Increase your proficiency in C programming, your dexterity with dynamic memory allocation and your understanding of data structures, through programming a search algorithm over Graphs."
+
+ILO 4. Implement the chosen data structures and algorithms.
+
+This maps primarily to purpose 1 and 2, "Gain experience with applications of graphs and graph algorithms to solving combinatorial games, one form of artificial intelligence."
+
+Assessment:
+Solver (finds solutions for capability test cases) [4 marks]
+[0.5 marks] ILO 4 – Able to find solutions that require moving from the starting location (test case 1)
+[0.5 marks] ILO 4 – Able to find solutions that require more than one state exploration (test case 2)
+[0.5 marks] ILO 4 – Able to find solutions to single l/r moves (test case 3)
+[0.5 marks] ILO 4 – Able to find each single move solution (u,d,l,r) (test case 4)
+[0.5 marks] ILO 4 – Able to find a 2-move solution if the same move is made (test case 5)
+[0.5 marks] ILO 4 – Able to find 2-move solutions (up to test case 7)
+[0.5 marks] ILO 4 - Able to move pieces out of the way, but may not be able to handle extra pieces that don't need to move (up to test case 9)
+[0.5 marks] ILO 4 - Able to solve puzzles even when it is necessary to move pieces out of the way (all test cases)
+These all involve the implementation of given algorithms. It is necessary to utilise the radix tree data structure to implement the novelty-based search, though its implementation isn't assessed in this assignment.
+
+Memory correctly freed [1 mark]
+[0.5 marks] ILO4 - Able to free memory of growing memory usage elements (i.e. states) in the context of implementing a given algorithm.
+[0.5 marks] ILO4 - Able to free memory of constant memory usage elements (e.g. initial state data, etc.) in the context of implementing a given algorithm.
+These all involve adding to the given algorithm to handle the return of memory once it is no longer needed, in the context of this problem, this is likely necessary to achieve puzzle solving under the more challenging memory constraints of Ed.
+Memory is free of errors [1 mark]
+[0.5 marks] ILO4 - Able to implement the given algorithm in C for solving the puzzles without significant enough errors to affect the output.
+[0.5 marks] ILO4 - Able to implement the given algorithm in C for solving the puzzles, applying a systematic approach to eliminate all errors detectable through Valgrind memory checking.
+These all involve the implementation of the given algorithm. A number of minor errors might appear that don't affect the output, this set of standards is meant to capture your ability to resolve those errors.
+Duplicate State Detection [2 marks]
+[1 mark] ILO 4 – Able to packing the map into a list of atoms at the correct point.
+[1 mark] ILO 4 – Able to check for duplicates in the radix tree.
+These all involve the implementation of Algorithm 2.
+Novelty Detection [2 marks]
+[1 mark] ILO 4 – Able to generate trees of each novelty successfully.
+[1 mark] ILO 4 – Able to iterate through each novelty level successfully.
+These all involve the understanding and implementation of Algorithm 3 and the concept of novelty.
+Experimentation [3 marks]
+[1 mark] ILO2 – Table presented with all required elements.
+[1 mark] ILO2 – Graphs are stand-alone and with all required information for analysis.
+[0.5 mark] ILO2 – Understanding of theoretical time complexity and why/why not clearly visible in the plots.
+[0.5 mark] ILO2 – Understanding of theoretical space complexity, justifying why it arises, and what challenges are present.
+
+These all involve setting up the right information for the analysis of complexity being performed, then performing that analysis. The task also involves deriving complexities based on your understanding of the radix tree and the complexities that lay within evaluating the memory usage of a radix tree.
+
+Code style [2 marks]
+[1 marks] ILO4 - Code Style is tailored for the task (understanding algorithm), making clear the elements that are unknown, i.e., explicit connection between every coded line (unknown) and the pseudocode (known)
+[1 marks] ILO4 - Code Style has generally good practice, e.g., code is easy enough to follow; without major readability errors, e.g. indentation consistent; variables well named; code style guidelines on the whole followed. Assumptions in the code, e.g., array and ordering of directions, are accounted for.
+
+Standards as Statements
+For your convenience, the standards are listed here in a more typical format that you can directly address in the self-evaluation.
+
+Solver (finds solutions for capability test cases) [4 marks]
+[0.5 marks] I am able to implement a search algorithm to find solutions that require moving from the starting location (test case 1)
+[0.5 marks] I am able to implement a search algorithm to find solutions that require more than one state exploration (test case 2)
+[0.5 marks] I am able to implement a search algorithm to find solutions to single l/r moves (test case 3)
+[0.5 marks] I am able to implement a search algorithm to find each single move solution (u,d,l,r) (test case 4)
+[0.5 marks] I am able to implement a search algorithm to find a 2-move solution if the same move is made (test case 5)
+[0.5 marks] I am able to implement a search algorithm to find 2-move solutions (up to test case 7)
+[0.5 marks] I am able to implement a search algorithm to move pieces out of the way, but may not be able to handle extra pieces that don't need to move (up to test case 9)
+[0.5 marks] I am able to implement a search algorithm to solve puzzles even when it is necessary to move pieces out of the way (all test cases)
+Memory correctly freed [1 mark]
+[0.5 marks] I am able to implement a search algorithm while freeing memory of growing memory usage elements (i.e. states) in the context of that algorithm.
+[0.5 marks] I am able to implement a search algorithm while freeing memory of constant memory usage elements (e.g. initial state data, etc.) in the context of that algorithm.
+Memory is free of errors [1 mark]
+[0.5 marks] I am able to implement a search algorithm in C for solving the puzzles without significant enough errors to affect the output.
+[0.5 marks] I am able to implement a search algorithm in C for solving the puzzles to eliminate all errors detectable through Valgrind memory checking by applying a systematic approach.
+Duplicate State Detection [2 marks]
+[1 mark] I am able to implement the packing of the puzzle state into a list of atoms at the correct point.
+[1 mark] I am able to implement the check for duplicate puzzle states using a radix tree.
+Novelty Detection [2 marks]
+[1 mark] I am able to implement the recording of novelty using radix trees successfully.
+[1 mark] I am able to modify an algorithm to iterate through each novelty level successfully.
+Experimentation [3 marks]
+[1 mark] I am able to run tests and record descriptive statistics that comprehensively tests all basic elements of behaviour needed to solve puzzles OR create tests that systematically assess complexity growth behaviour.
+[1 mark] I am able to represent run-time statistics visually to contrast theoretical and actual space complexity behaviour.
+[0.5 mark] I am able to analyse data to determine whether a given time complexity is observed and conjecture meaningful inferences about why the actual behaviour occurs.
+[0.5 mark] I am able to construct an expectation for space complexity given a scenario and analyse whether the space complexity has been observed, then conjecture meaningful inferences about why the actual behaviour occurs.
+Code style [2 marks]
+[1 marks] I am able to comment code implementing pseudocode explicitly linking all lines in the pseudocode to the lines in the code so that a reader familiar only with the pseudocode is able to understand that the algorithm has been implemented correctly.
+[1 marks] I am able to ensure code has appropriate variable names, makes use of additional variables to add readability, as well as named constants which mean readers don't need to make inferences about the meaning of any lines of code.
+
+
+The Code Base
+You are given a base code. You can compile the code and play with the keyboard (piece number and direction letter). You are going to have to program your solver in the file ai.c. Look at the file main.c (main function) to know which function is called to call the AI algorithm.
+
+You are given the structure of the game state (gate_t) and a radix tree implementation to check for duplicate states efficiently (line 23 in the Algorithm 2, and various lines of Algorithm 3). Look into the movement.c file to know about the functions you can call to apply an action to update a game state. All relevant files to implement in are located in the folder src/ai/.
+
+In your final submission, you are free to change any file, but make sure the command line options remain the same.
+
+Input
+You can play the game with the keyboard by executing
+./gate <puzzle>
+where puzzle points to the file containing the impassable gate puzzle to solve.
+In order to execute your AI solver use the following command:
+./gate -s <puzzle>
+Where -s calls your algorithm. All the options can be found if you use option -h:
+$./gate -h
+USAGE
+        ./gate <-s> puzzle
+DESCRIPTION
+ Arguments within <> are optional
+    -s                 calls the AI solver
+ for example:
+
+./gate -s test_puzzles/capability2
+
+Will run the 2nd capability puzzle, finding the solution using your solver and then will print the solution found.
+
+Output
+Your solver will print to standard output the following information:
+
+Solution.
+
+Total search time, in seconds.
+Number of expanded nodes.
+Number of generated nodes.
+Number of duplicated nodes.
+Auxiliary memory usage.
+Number of pieces in the puzzle.
+Solution length.
+Number of open spaces on the board.
+Search width that solution was found at.
+Number of nodes expanded per second.
+For example, the output of your solver  ./gate -s test_puzzles/capability6 could be:
+Solution path: 0l0u0u
+Execution time: 0.000117
+Expanded nodes: 7
+Generated nodes: 12
+Duplicated nodes: 8
+Auxiliary memory usage (bytes): 342
+Number of pieces in the puzzle: 1
+Number of steps in solution: 3
+Number of empty spaces: 34
+Solved by IW(1)
+Number of nodes expanded per second: 59796.594705
+
+Puzzle File Format
+We adapted the sokoban file reader to support the following specification representing Impassable Gate puzzles.
+Tile Character   	Meaning
+ 
+		Space (can be moved to)
+0		Piece of Professor Layton and Little Luke block
+1-9		Piece of other block
+G		Piece of goal location
+H		Piece of goal with piece of Professor Layton and Little Luke block on top
+I-Q		Piece of goal with piece of other block on top (order alphabetically matches numbers)
+​#		Wall
+
+Example Puzzle: Capability 1
+########
+###GG###
+###HH###
+#  00  #
+##    ##
+#      #
+#      #
+#      #
+#      #
+########
+
+In this puzzle, the Professor Layton and Little Luke Piece is half on the four squares of the goal location, and only needs to be pushed up one step to solve the puzzle.
+
+Solution File Format
+Solutions returned by the solver have a piece number (0-9) followed by a direction (represented as a letter, one of 
+u,d,l,r).
