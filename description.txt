@@ -1,4 +1,4 @@
-General Info
+1.General Info
 You must read fully and carefully the assignment specification and instructions.
 Course: COMP20003 Algorithms and Data Structures @ Semester 2, 2025
 Deadline Submission: Friday 24th October 2025 @ 5pm (end of Week 12)
@@ -12,7 +12,17 @@ The purpose of this assignment is for you to:
 Increase your proficiency in C programming, your dexterity with dynamic memory allocation and your understanding of data structures, through programming a search algorithm over Graphs.
 Gain experience with applications of graphs and graph algorithms to solving combinatorial games, one form of artificial intelligence.
 
-Iterated Width (IW) Search
+2.Impassable Gate Intro
+For the curious puzzle solver
+The Science of Impassable Gate
+Like a number of puzzles, the problem of finding the shortest Impassable Gate solution can be formulated as a decision problem. In simple terms, for a given puzzle, we can ask if a solution exists in 
+k or fewer steps, we can then - in polynomial time - check that a solution of 
+k or fewer steps is a valid solution (i.e. that each move made is valid and that the final state solves the problem).
+
+NP-complete problems are hard to solve. The best algorithms to solve NP-Complete problems run in exponential time as a function of the size of the problem and the shortest accepted solution. Hence, be aware that your AI solver may struggle more as the number of pieces and size of the board increases. We talked in the lectures about the Travelling Salesman Problem as one example of an NP-Complete problem. In fact, many real-world problems fall under this category. We are going to learn more about NP-Complete problems in the last lecture of the course via an invited talk in week 12.
+ "Impassable Gate.png" 
+
+3.Iterated Width (IW) Search
 Iterative Deepening is a search algorithm that works similarly to depth-first search, but with a small change, whenever we reach the current depth limit, the search does not generate any successors (next moves). Once no more search nodes are generated, the search stops and we increase the depth limit by one, then repeat the search from the start.
 
 Iterated Width Search is a search algorithm that works similarly to breadth-first search, but any node which is reached which has been seen before does not generate any successors. A more nuanced version of "seen before", known as novelty, is how this algorithm makes its gains. For this algorithm, any node which has a higher novelty rank than the current width limit of the search does not generate any successors. A state which has been fully seen before has maximum novelty rank. Once no more search nodes are generated, the search stops and we increase the width by one, then repeat the search.
@@ -31,7 +41,7 @@ In Iterated Width (IW) search, we start at width 1 (referred to as IW(1)), and t
 
 As you can see, the other branch of the tree would also be able to solve the yellow block trying to reach a goal in a similar position on the bottom of the board if that were instead the goal. However, with IW(1), we wouldn't find a solution to both of these simultaneously as the branches are different states. To not exclude these states in this problem, we would need to perform an IW(2) search. If the goal was to get the yellow block to the green space (i.e. impossible), the Iterated Width search with a novelty limit of 2 (IW(2)) would need to be completed to determine that the problem was unsolvable.
 
-The Algorithm
+4. The Algorithm
 A configuration of the Impassable Gate puzzle is specified by the location of walls and pieces. A configuration is called a state. The Impassable Graph 
 G=⟨V,E⟩ is implicitly defined. The vertex set V is defined as all the possible configurations (states), and the edges 
 E connecting two vertexes are defined by the legal movements (piece movements). All edges have a weight of 1.
@@ -41,12 +51,142 @@ Your task is to find the path traversing the Impassable Graph from the initial s
 When the AI solver is called (Algorithm 1), it should explore all possible paths (sequence of move actions) following the Uniform Cost Search strategy, until a path solving the puzzle is found. The algorithm should return the best solution found. This path will then be executed by the puzzle engine if the option play_solution was used as an argument.
 
 We will also ignore states where the piece doesn't move as a result of a part of the piece moving towards an adjacent wall, or towards an adjacent piece (line 16).
+"algorithm1.png"
+
+function SOLVE_BFS(start):
+    queue ← empty FIFO
+    enqueue(queue, start)
+    enqueued ← 1
+    dequeued ← 0
+
+    while queue not empty:
+        u ← dequeue(queue)
+        dequeued ← dequeued + 1
+
+        if WINNING_STATE(u):
+            solution ← u.soln
+            break
+
+        for piece in [0 .. numPieces-1]:
+            for dir in {u, d, l, r}:
+                newNode ← ATTEMPT_MOVE(u, piece, dir)
+                if newNode is a real move (piece changed position):
+                    newNode.soln ← u.soln + piece + dir
+                    enqueue(queue, newNode)
+                    enqueued ← enqueued + 1
+
+    output(solution, enqueued, dequeued)
 
 
 The recommended first optimisation is to eliminate states that have been fully seen before. If a state was already expanded (popped from the queue), we do not include it again in the queue (line 22 in Algorithm 2). Further optimisations are possible.
+"algorithm2.png"
+
+function SOLVE_BFS_DD(start):
+    radixTree ← INIT_RADIX_TREE()       // dùng cho phát hiện trùng
+    packedBytes ← GET_PACKED_SIZE(start)
+    packedMap   ← new byte[packedBytes]
+
+    queue ← empty FIFO
+
+    // nạp node gốc
+    PACKMAP(start, packedMap)
+    INSERT_RADIX_TREE(radixTree, packedMap)
+    enqueue(queue, start)
+
+    enqueued ← 1
+    dequeued ← 0
+    duplicatedNodes ← 0
+
+    while queue not empty:
+        u ← dequeue(queue)
+        dequeued ← dequeued + 1
+
+        if WINNING_STATE(u):
+            solution ← u.soln
+            break
+
+        for piece in [0 .. numPieces-1]:
+            for dir in {u, d, l, r}:
+                newNode ← ATTEMPT_MOVE(u, piece, dir)
+                if newNode is not a real move:
+                    continue
+
+                newNode.soln ← u.soln + piece + dir
+
+                PACKMAP(newNode, packedMap)     // chuyển state → danh sách “atoms” (bit-packed)
+                if CHECK_PRESENT(radixTree, packedMap) == PRESENT:
+                    duplicatedNodes ← duplicatedNodes + 1
+                    FREE(newNode)
+                    continue
+
+                INSERT_RADIX_TREE(radixTree, packedMap)
+                enqueue(queue, newNode)
+                enqueued ← enqueued + 1
+
+    output(solution, enqueued, dequeued, duplicatedNodes)
 
 
 The recommended second optimisation is to perform an Iterated Width (IW) search, to eliminate states that have been partially seen before. If all parts of the state have already been seen in a state already expanded (popped from the queue), we do not include the state again in the queue (line 30 in Algorithm 3). Further optimisations are possible.
+"algorithm3.png"
+
+function SOLVE_IW(start):
+    numPieces ← GET_NUMBER_OF_PIECES(start)
+    wMax ← numPieces + 1                     // độ rộng tối đa
+    packedBytes ← GET_PACKED_SIZE(start)
+    packedMap   ← new byte[packedBytes]
+
+    for width in [1 .. wMax]:
+        // radixTrees[a] chứa các “atoms combinations” kích thước a đã thấy
+        radixTrees[1..width] ← array of new RADIX_TREE()
+
+        queue ← empty FIFO
+        enqueue(queue, start)                 // có thể chèn start vào từng radixTrees[a] tuỳ cài đặt
+
+        enqueued ← 1
+        dequeued ← 0
+        duplicatedNodes ← 0
+
+        while queue not empty:
+            u ← dequeue(queue)
+            dequeued ← dequeued + 1
+
+            if WINNING_STATE(u):
+                solution ← u.soln
+                solvedWidth ← width
+                break outer_loop_if_needed
+
+            for piece in [0 .. numPieces-1]:
+                for dir in {u, d, l, r}:
+                    newNode ← ATTEMPT_MOVE(u, piece, dir)
+                    if newNode is not a real move:
+                        continue
+
+                    newNode.soln ← u.soln + piece + dir
+                    PACKMAP(newNode, packedMap)
+
+                    novel ← false
+                    // kiểm tra “novelty”: tồn tại kích thước a ≤ width
+                    // sao cho tổ hợp kích thước a của packedMap CHƯA có trong radixTrees[a]
+                    for a in [1 .. width]:
+                        if CHECK_PRESENT_NCR(radixTrees[a], packedMap, a) == NOT_PRESENT:
+                            novel ← true
+                            INSERT_RADIX_TREE_NCR(radixTrees[a], packedMap, a)
+                            break
+
+                    if not novel:
+                        duplicatedNodes ← duplicatedNodes + 1
+                        FREE(newNode)
+                        continue
+
+                    enqueue(queue, newNode)
+                    enqueued ← enqueued + 1
+
+        // nếu tìm thấy nghiệm ở độ rộng hiện tại thì dừng toàn bộ
+        if solution found:
+            break
+
+    output(solution, solvedWidth, enqueued, dequeued, duplicatedNodes)
+
 
 You might have multiple paths leading to a solution. Your algorithm should consider the possible actions (line 15, Alg. 3) in the following order: first by changes in the piece, then by changes in the y-axis, then by changes in the x-axis (i.e. picking moves by piece, then in the order left-to-right along the top row, then left-to-right along the second row, etc.). This will produce one unique ordering for un-optimised code which may be valuable for testing the correctness of your solution.
 

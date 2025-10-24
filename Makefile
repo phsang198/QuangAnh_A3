@@ -5,8 +5,8 @@
 ## Makefile
 ##
 
-#CC	=	gcc -Wall -Wextra -O3 -g
-CC	=	gcc -Wall -Wextra -g
+CC	=	gcc -Wall -Wextra -O3 -g
+#CC	=	gcc -Wall -Wextra -g
 
 
 RM	=	rm -f

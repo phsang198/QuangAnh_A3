@@ -2,3 +2,4 @@ Description/img
 target/
 .vscode/
 cmt.bat
+*.o
