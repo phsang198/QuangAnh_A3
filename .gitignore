@@ -3,3 +3,4 @@ target/
 .vscode/
 cmt.bat
 *.o
+gate
