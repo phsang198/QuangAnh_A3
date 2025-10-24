@@ -86,5 +86,5 @@ runtests:
 checkleaks:
 	make fclean
 	make
-	valgrind --leak-check=full --show-leak-kinds=all ./gate test_puzzles/capability1
+	valgrind --leak-check=full --show-leak-kinds=all ./gate -s test_puzzles/capability1
 .PHONY: all clean fclean re

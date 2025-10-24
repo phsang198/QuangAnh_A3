@@ -156,20 +156,32 @@ void free_initial_state(gate_t *init_data) {
 		init_data->soln = NULL;
 	}
 }
+/*
+ * Algorithm 1: Plain breadth-first search (BFS)
+ * - Purpose: Find the shortest sequence of moves to solve the puzzle by
+ *   exploring states in breadth-first order.
+ * - Inputs: `init_data` (initial puzzle state)
+ * - Outputs: assigns `init_data->soln` to a solution string on success.
+ * - Notes: This implementation stores full states in a dynamic queue and
+ *   does NOT detect duplicate states (no closed set), so may revisit states.
+ * - Complexity: time and memory grow exponentially with solution depth; this
+ *   is a baseline reference algorithm.
+ */
 void find_solution_algorithm1(gate_t* init_data) {
-    bool has_won = false;
+	bool has_won = false;
     int dequeued = 0;
     int enqueued = 0;
     int duplicatedNodes = 0; // luôn 0 với BFS thuần
+	/* duplicatedNodes remains 0 for plain BFS (no duplicate detection) */
     char *soln = NULL;
 
     double start = now();
 
-    /* Hàng đợi động */
+	/* Dynamic queue */
     int qcap = 1024, qhead = 0, qtail = 0;
     gate_t **queue = (gate_t**)malloc(sizeof(gate_t*) * qcap);
 
-    /* Trạng thái gốc */
+	/* Initial state */
     gate_t *start_state = duplicate_state(init_data);
 
 	if (!start_state->soln)
@@ -198,20 +210,20 @@ void find_solution_algorithm1(gate_t* init_data) {
 			for (int d = 0; d < 4; ++d) {
 				char dir = directions[d];
 
-				// Tạo bản sao node cha
+				// Create a copy of the parent node
 				gate_t *v = duplicate_state(u);
 
-				// Thực hiện move trực tiếp trên node con
+				// Perform the move on the child node
 				gate_t before = *v;
 				*v = move_location(*v, piece, dir);
 
-				// Nếu move không thay đổi vị trí piece p thì bỏ qua
+				// If the move did not change piece p's coordinates, skip
 				if (v->piece_x[p] == u->piece_x[p] && v->piece_y[p] == u->piece_y[p]) {
 					free_state(v, init_data);
 					continue;
 				}
 
-				// Nối lời giải: soln(parent) + piece + dir
+				// Append the move to the solution string: soln(parent) + piece + dir
 				size_t prevLen = u->soln ? strlen(u->soln) : 0;
 				if (v->soln) free(v->soln);
 				v->soln = (char*)malloc(prevLen + 3);
@@ -228,11 +240,11 @@ void find_solution_algorithm1(gate_t* init_data) {
 			}
 		}
 
-		// Đã mở rộng xong u
+		// Finished expanding u
 		free_state(u, init_data);
 	}
 
-    /* Dọn phần còn lại nếu thoát giữa chừng */
+	/* Clean up remaining states if loop exited early (found solution) */
     for (int i = qhead; i < qtail; ++i) {
         if (queue[i]) free_state(queue[i], init_data);
     }
@@ -240,13 +252,13 @@ void find_solution_algorithm1(gate_t* init_data) {
 
     double elapsed = now() - start;
 
-    /* In thống kê cho BFS thuần */
+	/* Print statistics for plain BFS */
     printf("Solution path: %s\n", soln ? soln : "Not Found");
     printf("Execution time: %lf\n", elapsed);
     printf("Expanded nodes: %d\n", dequeued);
     printf("Generated nodes: %d\n", enqueued);
-    printf("Duplicated nodes: %d\n", duplicatedNodes);     // luôn 0 ở BFS thuần
-    printf("Auxiliary memory usage (bytes): %d\n", 0);     // không dùng radix
+	printf("Duplicated nodes: %d\n", duplicatedNodes);     /* always 0 for plain BFS */
+	printf("Auxiliary memory usage (bytes): %d\n", 0);     /* no radix tree used */
     printf("Number of pieces in the puzzle: %d\n", init_data->num_pieces);
     printf("Number of steps in solution: %ld\n", soln ? (long)strlen(soln)/2 : 0L);
 
@@ -256,8 +268,8 @@ void find_solution_algorithm1(gate_t* init_data) {
             if (init_data->map_save[i][j] == ' ') emptySpaces++;
     printf("Number of empty spaces: %d\n", emptySpaces);
 
-    /* Với thuật toán 1, đừng in “Solved by IW(w)”; nếu vẫn cần field này: */
-    printf("Solved by IW(%d)\n", init_data->num_pieces + 1);
+	/* For algorithm 1 we don't use novelty/IW labels; print a placeholder if needed */
+	printf("Solved by IW(%d)\n", init_data->num_pieces + 1);
 
     printf("Number of nodes expanded per second: %lf\n", (dequeued + 1) / elapsed);
 
@@ -269,6 +281,18 @@ void find_solution_algorithm1(gate_t* init_data) {
     free_initial_state(init_data);
 }
 
+
+/*
+ * Algorithm 2: BFS with compact state packing and radix-tree duplicate detection
+ * - Purpose: Breadth-first exploration like Algorithm 1 but avoids revisiting
+ *   previously seen states by packing each state's piece coordinates into a
+ *   compact bit representation and tracking seen atoms in a radix tree.
+ * - Inputs: `init_data` (initial puzzle state)
+ * - Outputs: assigns `init_data->soln` to the found solution string.
+ * - Notes: Packing reduces the cost of duplicate checks; radix tree stores
+ *   seen packed states (or atom combinations). This reduces redundant work
+ *   compared to plain BFS at the cost of additional memory for the radix tree.
+ */
 void find_solution_algorithm2(gate_t* init_data) {
 	/* Location for packedMap. */
 	int packedBytes = getPackedSize(init_data);
@@ -283,7 +307,7 @@ void find_solution_algorithm2(gate_t* init_data) {
 	double start = now();
 	double elapsed;
 	
-	// Algorithm 1 is a width n + 1 search
+	/* Algorithm 1 (plain BFS) is equivalent to a width w = n_pieces + 1 search; */
 	int w = init_data->num_pieces + 1;
 
 	int height = init_data->lines;
@@ -463,8 +487,21 @@ static inline void append_move(gate_t *child, const char *parent_soln, char piec
 }
 
 void find_solution_algorithm3(gate_t* init_data) {
-    /* packedBytes: theo code hiện tại của bạn, getPackedSize trả BIT-COUNT.
-       Để đồng bộ với phần còn lại, mình giữ nguyên (cấp phát “dư” byte) */
+	 /*
+	  * Algorithm 3: Iterative Width (IW) / novelty-based search
+	  * - Purpose: Perform a novelty-driven breadth-first search with increasing
+	  *   width (w). For each width, nodes are kept if they introduce a novel
+	  *   combination of atom-values (nCr of size k) for some k <= w.
+	  * - Inputs: `init_data` (initial puzzle state)
+	  * - Outputs: assigns `init_data->soln` to the found solution string.
+	  * - Notes: This method stores a radix tree for each k to record seen
+	  *   combinations and prunes nodes that are not novel up to width w. It is
+	  *   much more selective than plain BFS and can dramatically reduce search
+	  *   effort for many domains.
+	  */
+
+	 /* packedBytes: getPackedSize currently returns a bit-count; code keeps
+		 the existing approach and allocates bytes accordingly (may over-allocate) */
     int packedBytes = getPackedSize(init_data);
     unsigned char *packedMap = (unsigned char*)calloc(packedBytes, 1);
     assert(packedMap);
@@ -473,8 +510,8 @@ void find_solution_algorithm3(gate_t* init_data) {
     int height = init_data->lines;
     int width  = init_data->num_chars_map / init_data->lines;
 
-    /* Mỗi k có một radixTree để lưu “atoms-combinations” size k đã thấy */
-    struct radixTree **rts = (struct radixTree**)calloc(wmax + 1, sizeof(*rts));
+	/* For each k we maintain a radixTree that stores seen atom-combinations of size k */
+	struct radixTree **rts = (struct radixTree**)calloc(wmax + 1, sizeof(*rts));
     assert(rts);
 
     int dequeued_total = 0;
@@ -485,19 +522,19 @@ void find_solution_algorithm3(gate_t* init_data) {
 
     double start = now();
 
-    /* Duyệt width từ 1 tới wmax */
-    for (int w = 1; w <= wmax; ++w) {
+	/* Iterate width from 1 to wmax */
+	for (int w = 1; w <= wmax; ++w) {
 
-        /* Tạo cây novelty cho mọi k <= w nếu chưa có */
-        for (int k = 1; k <= w; ++k) {
-            if (!rts[k]) rts[k] = getNewRadixTree(init_data->num_pieces, height, width);
-        }
+		/* Create novelty trees for all k <= w if they don't exist yet */
+		for (int k = 1; k <= w; ++k) {
+			if (!rts[k]) rts[k] = getNewRadixTree(init_data->num_pieces, height, width);
+		}
 
-        /* Hàng đợi động */
+		/* Dynamic queue */
         int qcap = 1024, qhead = 0, qtail = 0;
         gate_t **queue = (gate_t**)malloc(sizeof(gate_t*) * qcap);
 
-        /* Nạp root */
+		/* Load root (initial state copy) */
         gate_t *root = duplicate_state(init_data);
 		free(root->soln);
 		root->soln = NULL;
@@ -505,12 +542,12 @@ void find_solution_algorithm3(gate_t* init_data) {
 
         memset(packedMap, 0, packedBytes);
         packMap(root, packedMap);
-        /* Chèn root vào tất cả mức novelty k mà chưa có */
-        for (int k = 1; k <= w; ++k) {
-            if (checkPresentnCr(rts[k], packedMap, k) == NOTPRESENT) {
-                insertRadixTreenCr(rts[k], packedMap, k);
-            }
-        }
+		/* Insert root into all novelty levels k where it is not present */
+		for (int k = 1; k <= w; ++k) {
+			if (checkPresentnCr(rts[k], packedMap, k) == NOTPRESENT) {
+				insertRadixTreenCr(rts[k], packedMap, k);
+			}
+		}
 
         queue[qtail++] = root;
         int dequeued = 0, enqueued = 1, duplicated = 0;
@@ -528,7 +565,7 @@ void find_solution_algorithm3(gate_t* init_data) {
                 break;
             }
 
-            /* Sinh con: theo thứ tự piece rồi {u,d,l,r} */
+				/* Generate children: iterate pieces then {u,d,l,r} */
             for (int p = 0; p < init_data->num_pieces; ++p) {
                 char piece = pieceNames[p];
                 for (int di = 0; di < 4; ++di) {
@@ -536,11 +573,11 @@ void find_solution_algorithm3(gate_t* init_data) {
 
                     gate_t moved = move_location(*u, piece, dir);
 
-                    /* Non-move: toạ độ miếng p không đổi */
-                    if (moved.piece_x[p] == u->piece_x[p] &&
-                        moved.piece_y[p] == u->piece_y[p]) {
-                        continue;
-                    }
+						/* Non-move: piece p coordinates unchanged */
+						if (moved.piece_x[p] == u->piece_x[p] &&
+							moved.piece_y[p] == u->piece_y[p]) {
+							continue;
+						}
 
                     gate_t *child = duplicate_state(&moved);
 					free(child->soln);
@@ -550,24 +587,26 @@ void find_solution_algorithm3(gate_t* init_data) {
                     memset(packedMap, 0, packedBytes);
                     packMap(child, packedMap);
 
-                    /* Novelty check: tồn tại k <= w sao cho tổ hợp nCr size k CHƯA thấy? */
-                    int novel_k = 0;
-                    for (int k = 1; k <= w; ++k) {
-                        if (checkPresentnCr(rts[k], packedMap, k) == NOTPRESENT) {
-                            novel_k = k; break;
-                        }
-                    }
-                    if (!novel_k) {
-                        /* Không novel ở mọi k <= w: prune */
-                        duplicated++;
-                        free_state(child, init_data);
-                        continue;
-                    }
+					/* Novelty check: is there a k <= w such that some nCr combination
+					   of size k has NOT been seen? If none, the node is not novel and
+					   can be pruned. */
+					int novel_k = 0;
+					for (int k = 1; k <= w; ++k) {
+						if (checkPresentnCr(rts[k], packedMap, k) == NOTPRESENT) {
+							novel_k = k; break;
+						}
+					}
+					if (!novel_k) {
+						/* Not novel for any k <= w: prune this child */
+						duplicated++;
+						free_state(child, init_data);
+						continue;
+					}
 
                     /* Insert vào cây tại kích thước novel_k */
                     insertRadixTreenCr(rts[novel_k], packedMap, novel_k);
 
-                    /* Enqueue */
+					/* Enqueue the novel child */
                     if (qtail >= qcap) {
                         qcap *= 2;
                         queue = (gate_t**)realloc(queue, sizeof(gate_t*) * qcap);
@@ -576,21 +615,21 @@ void find_solution_algorithm3(gate_t* init_data) {
                 }
             }
 
-            free_state(u, init_data);
+			free_state(u, init_data);
         }
 
-        /* Dọn queue còn lại nếu đã break vì tìm thấy nghiệm */
-        for (int i = qhead; i < qtail; ++i) if (queue[i]) free_state(queue[i], init_data);
+		/* Clean up remaining queue entries if search broke due to finding a solution */
+		for (int i = qhead; i < qtail; ++i) if (queue[i]) free_state(queue[i], init_data);
         free(queue);
 
         dequeued_total   += dequeued;
         enqueued_total   += enqueued;
         duplicated_total += duplicated;
 
-        if (found) break; /* nghiệm đã tìm thấy ở width w */
+		if (found) break; /* solution found at width w */
     }
 
-    /* Thống kê bộ nhớ novelty trees */
+	/* Memory statistics for novelty trees */
     int memoryUsage = 0;
     for (int k = 1; k <= wmax; ++k) {
         if (rts[k]) {
@@ -628,6 +667,7 @@ void find_solution_algorithm3(gate_t* init_data) {
 
   
     if (init_data->soln) { free(init_data->soln); init_data->soln = NULL; } 
+	free_initial_state(init_data);
 }
 
 /**
@@ -636,8 +676,8 @@ void find_solution_algorithm3(gate_t* init_data) {
 void find_solution(gate_t* init_data)
 {
 	//find_solution_algorithm1(init_data);
-	//find_solution_algorithm2(init_data);
-	find_solution_algorithm3(init_data);
+	find_solution_algorithm2(init_data);
+	//find_solution_algorithm3(init_data);
 }
 /**
  * Given a game state, work out the number of bytes required to store the state.

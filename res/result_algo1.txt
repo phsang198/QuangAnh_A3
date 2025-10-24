@@ -1,0 +1,120 @@
+./gate -s test_puzzles/capability1
+Solution path: 0u
+Execution time: 0.000016
+Expanded nodes: 2
+Generated nodes: 3
+Duplicated nodes: 0
+Auxiliary memory usage (bytes): 0
+Number of pieces in the puzzle: 1
+Number of steps in solution: 1
+Number of empty spaces: 32
+Solved by IW(2)
+Number of nodes expanded per second: 187804.656716
+./gate -s test_puzzles/capability2
+Solution path: 0r
+Execution time: 0.000024
+Expanded nodes: 3
+Generated nodes: 6
+Duplicated nodes: 0
+Auxiliary memory usage (bytes): 0
+Number of pieces in the puzzle: 1
+Number of steps in solution: 1
+Number of empty spaces: 34
+Solved by IW(2)
+Number of nodes expanded per second: 167772.160000
+./gate -s test_puzzles/capability3
+Solution path: 0l
+Execution time: 0.000067
+Expanded nodes: 3
+Generated nodes: 6
+Duplicated nodes: 0
+Auxiliary memory usage (bytes): 0
+Number of pieces in the puzzle: 1
+Number of steps in solution: 1
+Number of empty spaces: 34
+Solved by IW(2)
+Number of nodes expanded per second: 59705.395018
+./gate -s test_puzzles/capability4
+Solution path: 0d
+Execution time: 0.000031
+Expanded nodes: 2
+Generated nodes: 2
+Duplicated nodes: 0
+Auxiliary memory usage (bytes): 0
+Number of pieces in the puzzle: 1
+Number of steps in solution: 1
+Number of empty spaces: 32
+Solved by IW(2)
+Number of nodes expanded per second: 96791.630769
+./gate -s test_puzzles/capability5
+Solution path: 0u0u
+Execution time: 0.000050
+Expanded nodes: 6
+Generated nodes: 15
+Duplicated nodes: 0
+Auxiliary memory usage (bytes): 0
+Number of pieces in the puzzle: 1
+Number of steps in solution: 2
+Number of empty spaces: 30
+Solved by IW(2)
+Number of nodes expanded per second: 139810.133333
+./gate -s test_puzzles/capability6
+Solution path: 0l0u0u
+Execution time: 0.000223
+Expanded nodes: 21
+Generated nodes: 64
+Duplicated nodes: 0
+Auxiliary memory usage (bytes): 0
+Number of pieces in the puzzle: 1
+Number of steps in solution: 3
+Number of empty spaces: 30
+Solved by IW(2)
+Number of nodes expanded per second: 98689.505882
+./gate -s test_puzzles/capability7
+Solution path: 0r0u0u
+Execution time: 0.000208
+Expanded nodes: 21
+Generated nodes: 64
+Duplicated nodes: 0
+Auxiliary memory usage (bytes): 0
+Number of pieces in the puzzle: 1
+Number of steps in solution: 3
+Number of empty spaces: 30
+Solved by IW(2)
+Number of nodes expanded per second: 105819.596330
+./gate -s test_puzzles/capability8
+Solution path: 1l0u0u0u
+Execution time: 0.015640
+Expanded nodes: 723
+Generated nodes: 4087
+Duplicated nodes: 0
+Auxiliary memory usage (bytes): 0
+Number of pieces in the puzzle: 2
+Number of steps in solution: 4
+Number of empty spaces: 28
+Solved by IW(3)
+Number of nodes expanded per second: 46292.205494
+./gate -s test_puzzles/capability9
+Solution path: 1l2r0u0u0u
+Execution time: -93.658692
+Expanded nodes: 8308
+Generated nodes: 57867
+Duplicated nodes: 0
+Auxiliary memory usage (bytes): 0
+Number of pieces in the puzzle: 3
+Number of steps in solution: 5
+Number of empty spaces: 26
+Solved by IW(4)
+Number of nodes expanded per second: -88.715738
+./gate -s test_puzzles/capability10
+Solution path: 1l2r0u0u0u
+Execution time: 0.117329
+Expanded nodes: 3962
+Generated nodes: 25029
+Duplicated nodes: 0
+Auxiliary memory usage (bytes): 0
+Number of pieces in the puzzle: 4
+Number of steps in solution: 5
+Number of empty spaces: 20
+Solved by IW(5)
+Number of nodes expanded per second: 33776.780892
