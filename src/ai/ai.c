@@ -89,8 +89,6 @@ gate_t* duplicate_state(gate_t* gate) {
 	}
 	/* base_path is const char* to file path; keep pointer */
 	return duplicate;
-	return duplicate;
-
 }
 
 /**
@@ -173,11 +171,13 @@ void find_solution_algorithm1(gate_t* init_data) {
 
     /* Trạng thái gốc */
     gate_t *start_state = duplicate_state(init_data);
-    if (!start_state->soln) {
-        start_state->soln = (char*)malloc(1);
+
+	if (!start_state->soln)
+	{
+		start_state->soln = (char*)malloc(1);
         start_state->soln[0] = '\0';
-    }
-    queue[qtail++] = start_state; enqueued++;
+	}
+	queue[qtail++] = start_state; enqueued++;
 
 
 	while (qhead < qtail) {
@@ -286,10 +286,6 @@ void find_solution_algorithm2(gate_t* init_data) {
 	// Algorithm 1 is a width n + 1 search
 	int w = init_data->num_pieces + 1;
 
-	/*
-	 * FILL IN: Algorithm 1 - 3.
-	 */
-	/* Simple BFS / Uniform Cost Search with duplicate detection using radix tree. */
 	int height = init_data->lines;
 	int width = init_data->num_chars_map / init_data->lines;
 	int atomCount = init_data->num_pieces;
@@ -503,6 +499,8 @@ void find_solution_algorithm3(gate_t* init_data) {
 
         /* Nạp root */
         gate_t *root = duplicate_state(init_data);
+		free(root->soln);
+		root->soln = NULL;
         if (!root->soln) { root->soln = (char*)malloc(1); root->soln[0] = '\0'; }
 
         memset(packedMap, 0, packedBytes);
@@ -545,6 +543,8 @@ void find_solution_algorithm3(gate_t* init_data) {
                     }
 
                     gate_t *child = duplicate_state(&moved);
+					free(child->soln);
+					child->soln = NULL;
                     append_move(child, u->soln, piece, dir);
 
                     memset(packedMap, 0, packedBytes);
@@ -636,8 +636,8 @@ void find_solution_algorithm3(gate_t* init_data) {
 void find_solution(gate_t* init_data)
 {
 	//find_solution_algorithm1(init_data);
-	find_solution_algorithm2(init_data);
-	//find_solution_algorithm3(init_data);
+	//find_solution_algorithm2(init_data);
+	find_solution_algorithm3(init_data);
 }
 /**
  * Given a game state, work out the number of bytes required to store the state.
