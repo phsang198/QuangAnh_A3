@@ -368,24 +368,24 @@ void find_solution_algorithm2(gate_t* init_data) {
 				}
 				/* Not seen, insert and enqueue */
 				insertRadixTree(rt, childPacked, atomCount);
-		/* Overwrite v's dynamic data with tmp's results */
-		/* Create new copies of tmp's maps first (tmp may share pointers with v)
-		   then free old storage and attach the new copies to v. */
-		char **new_map = (char**)malloc(sizeof(char*) * tmp.lines);
-		char **new_map_save = (char**)malloc(sizeof(char*) * tmp.lines);
-		for (int i = 0; i < tmp.lines; i++) {
-			new_map[i] = (char*)malloc(strlen(tmp.map[i]) + 1);
-			strcpy(new_map[i], tmp.map[i]);
-			new_map_save[i] = (char*)malloc(strlen(tmp.map_save[i]) + 1);
-			strcpy(new_map_save[i], tmp.map_save[i]);
-		}
-		/* Now free previous v storage */
-		for (int i = 0; i < v->lines; i++) { if (v->map[i]) free(v->map[i]); }
-		for (int i = 0; i < v->lines; i++) { if (v->map_save[i]) free(v->map_save[i]); }
-		free(v->map); free(v->map_save);
-		/* Attach new copies */
-		v->map = new_map;
-		v->map_save = new_map_save;
+				/* Overwrite v's dynamic data with tmp's results */
+				/* Create new copies of tmp's maps first (tmp may share pointers with v)
+				then free old storage and attach the new copies to v. */
+				char **new_map = (char**)malloc(sizeof(char*) * tmp.lines);
+				char **new_map_save = (char**)malloc(sizeof(char*) * tmp.lines);
+				for (int i = 0; i < tmp.lines; i++) {
+					new_map[i] = (char*)malloc(strlen(tmp.map[i]) + 1);
+					strcpy(new_map[i], tmp.map[i]);
+					new_map_save[i] = (char*)malloc(strlen(tmp.map_save[i]) + 1);
+					strcpy(new_map_save[i], tmp.map_save[i]);
+				}
+				/* Now free previous v storage */
+				for (int i = 0; i < v->lines; i++) { if (v->map[i]) free(v->map[i]); }
+				for (int i = 0; i < v->lines; i++) { if (v->map_save[i]) free(v->map_save[i]); }
+				free(v->map); free(v->map_save);
+				/* Attach new copies */
+				v->map = new_map;
+				v->map_save = new_map_save;
 				/* Copy scalar fields */
 				v->lines = tmp.lines;
 				v->player_x = tmp.player_x; v->player_y = tmp.player_y;
@@ -407,10 +407,6 @@ void find_solution_algorithm2(gate_t* init_data) {
 	for (int i = qhead; i < qtail; i++) {
 		if (queue[i]) free_state(queue[i], init_data);
 	}
-	free(queue);
-	if (rt) freeRadixTree(rt);
-	if (curPacked) free(curPacked);
-	if (childPacked) free(childPacked);
 
 	/* Output statistics */
 	elapsed = now() - start;
@@ -422,11 +418,8 @@ void find_solution_algorithm2(gate_t* init_data) {
 	printf("Duplicated nodes: %d\n", duplicatedNodes);
 	int memoryUsage = 0;
 	// Algorithm 2: Memory usage, uncomment to add.
-	// memoryUsage += queryRadixMemoryUsage(radixTree);
-	// Algorithm 3: Memory usage, uncomment to add.
-	// for(int i = 0; i < w; i++) {
-	//	memoryUsage += queryRadixMemoryUsage(rts[i]);
-	// }
+	memoryUsage += queryRadixMemoryUsage(rt);
+
 	printf("Auxiliary memory usage (bytes): %d\n", memoryUsage);
 	printf("Number of pieces in the puzzle: %d\n", init_data->num_pieces);
 	printf("Number of steps in solution: %ld\n", strlen(soln)/2);
@@ -444,6 +437,12 @@ void find_solution_algorithm2(gate_t* init_data) {
 	printf("Solved by IW(%d)\n", w);
 	printf("Number of nodes expanded per second: %lf\n", (dequeued + 1) / elapsed);
 
+	
+	free(queue);
+	if (rt) freeRadixTree(rt);
+	if (curPacked) free(curPacked);
+	if (childPacked) free(childPacked);
+	
 	/* Free associated memory. */
 	if(packedMap) {
 		free(packedMap);
@@ -458,193 +457,177 @@ void find_solution_algorithm2(gate_t* init_data) {
 	free_initial_state(init_data);
 }
 
+static inline void append_move(gate_t *child, const char *parent_soln, char piece, char dir) {
+    size_t L = parent_soln ? strlen(parent_soln) : 0;
+    child->soln = (char*)malloc(L + 3);
+    if (L) memcpy(child->soln, parent_soln, L);
+    child->soln[L]   = piece;
+    child->soln[L+1] = dir;
+    child->soln[L+2] = '\0';
+}
+
 void find_solution_algorithm3(gate_t* init_data) {
-	/* Location for packedMap. */
-	int packedBytes = getPackedSize(init_data);
-	unsigned char *packedMap = (unsigned char *) calloc(packedBytes, sizeof(unsigned char));
-	assert(packedMap);
+    /* packedBytes: theo code hiện tại của bạn, getPackedSize trả BIT-COUNT.
+       Để đồng bộ với phần còn lại, mình giữ nguyên (cấp phát “dư” byte) */
+    int packedBytes = getPackedSize(init_data);
+    unsigned char *packedMap = (unsigned char*)calloc(packedBytes, 1);
+    assert(packedMap);
 
-	bool has_won = false;
-	int dequeued = 0;
-	int enqueued = 0;
-	int duplicatedNodes = 0;
-	char *soln = NULL;
-	double start = now();
-	double elapsed;
-	
-	// Algorithm 1 is a width n + 1 search
-	int w = init_data->num_pieces + 1;
+    int wmax = init_data->num_pieces + 1;
+    int height = init_data->lines;
+    int width  = init_data->num_chars_map / init_data->lines;
 
-	/*
-	 * FILL IN: Algorithm 1 - 3.
-	 */
-	/* Simple BFS / Uniform Cost Search with duplicate detection using radix tree. */
-	int height = init_data->lines;
-	int width = init_data->num_chars_map / init_data->lines;
-	int atomCount = init_data->num_pieces;
-	struct radixTree *rt = getNewRadixTree(atomCount, height, width);
-	int packedSize = packedBytes;
-	unsigned char *curPacked = (unsigned char*)calloc(packedBytes, sizeof(unsigned char));
-	unsigned char *childPacked = (unsigned char*)calloc(packedBytes, sizeof(unsigned char));
-	/* Create initial state copy that owns its resources for queue management */
-	gate_t *start_state = duplicate_state(init_data);
-	/* Ensure starting solution string exists */
-	if (!start_state->soln) {
-		start_state->soln = (char*)malloc(1);
-		start_state->soln[0] = '\0';
-	}
-	/* Pack and insert start */
-	packMap(start_state, curPacked);
-	insertRadixTree(rt, curPacked, atomCount);
-	/* Simple dynamic queue of gate_t* */
-	int qcap = 1024;
-	int qhead = 0, qtail = 0;
-	gate_t **queue = (gate_t**)malloc(sizeof(gate_t*) * qcap);
-	queue[qtail++] = start_state; enqueued++;
-	/* Search loop */
-	while(qhead < qtail) {
-		gate_t *u = queue[qhead++];
-		dequeued++;
-		/* Check goal */
-		if (winning_state(*u)) {
-			has_won = true;
-			/* Copy solution string out */
-			if (u->soln) {
-				if (soln) free(soln);
-				soln = (char*)malloc(strlen(u->soln) + 1);
-				strcpy(soln, u->soln);
-			}
-			/* free popped state and remaining queue items */
-			free_state(u, init_data);
-			break;
-		}
-		/* Generate successors: iterate pieces then directions */
-		for (int p = 0; p < init_data->num_pieces; p++) {
-			char piece = pieceNames[p];
-			for (int d = 0; d < 4; d++) {
-				char dir = directions[d];
-				/* Create child by duplicating u */
-				gate_t *v = duplicate_state(u);
-				/* Append move to solution string: piece + dir */
-				int prevLen = v->soln ? strlen(v->soln) : 0;
-				char *newSol = (char*)malloc(prevLen + 3); /* two chars + terminator */
-				if (prevLen > 0) memcpy(newSol, v->soln, prevLen);
-				newSol[prevLen] = piece;
-				newSol[prevLen+1] = dir;
-				newSol[prevLen+2] = '\0';
-				if (v->soln) free(v->soln);
-				v->soln = newSol;
-				/* Correct approach: perform move on a local copy and then overwrite v's contents. */
-				gate_t tmp = *v; /* copy of current duplicated state */
-				/* Actually perform move on tmp */
-				tmp = move_location(tmp, piece, dir);
-				/* Now compare packed representation to see if any change occurred */
-				/* Pack u and tmp */
-				packMap(u, curPacked);
-				packMap(&tmp, childPacked);
-				/* If identical, skip */
-				bool identical = (memcmp(curPacked, childPacked, packedBytes) == 0);
-				if (identical) {
-					/* no state change - drop v */
-					free_state(v, init_data);
-					continue;
-				}
-				/* Check radix duplicate */
-				if (checkPresent(rt, childPacked, atomCount) == PRESENT) {
-					duplicatedNodes++;
-					free_state(v, init_data);
-					continue;
-				}
-				/* Not seen, insert and enqueue */
-				insertRadixTree(rt, childPacked, atomCount);
-		/* Overwrite v's dynamic data with tmp's results */
-		/* Create new copies of tmp's maps first (tmp may share pointers with v)
-		   then free old storage and attach the new copies to v. */
-		char **new_map = (char**)malloc(sizeof(char*) * tmp.lines);
-		char **new_map_save = (char**)malloc(sizeof(char*) * tmp.lines);
-		for (int i = 0; i < tmp.lines; i++) {
-			new_map[i] = (char*)malloc(strlen(tmp.map[i]) + 1);
-			strcpy(new_map[i], tmp.map[i]);
-			new_map_save[i] = (char*)malloc(strlen(tmp.map_save[i]) + 1);
-			strcpy(new_map_save[i], tmp.map_save[i]);
-		}
-		/* Now free previous v storage */
-		for (int i = 0; i < v->lines; i++) { if (v->map[i]) free(v->map[i]); }
-		for (int i = 0; i < v->lines; i++) { if (v->map_save[i]) free(v->map_save[i]); }
-		free(v->map); free(v->map_save);
-		/* Attach new copies */
-		v->map = new_map;
-		v->map_save = new_map_save;
-				/* Copy scalar fields */
-				v->lines = tmp.lines;
-				v->player_x = tmp.player_x; v->player_y = tmp.player_y;
-				v->num_chars_map = tmp.num_chars_map; v->num_pieces = tmp.num_pieces;
-				for (int i = 0; i < v->num_pieces; i++) { v->piece_x[i] = tmp.piece_x[i]; v->piece_y[i] = tmp.piece_y[i]; }
-				/* Enqueue v */
-				/* Grow queue if necessary */
-				if (qtail >= qcap) {
-					qcap *= 2;
-					queue = (gate_t**)realloc(queue, sizeof(gate_t*) * qcap);
-				}
-				queue[qtail++] = v; enqueued++;
-			}
-		}
-		/* Free u after expansion */
-		free_state(u, init_data);
-	}
-	/* Clean up queue remainder if not emptied by solution */
-	for (int i = qhead; i < qtail; i++) {
-		if (queue[i]) free_state(queue[i], init_data);
-	}
-	free(queue);
-	if (rt) freeRadixTree(rt);
-	if (curPacked) free(curPacked);
-	if (childPacked) free(childPacked);
+    /* Mỗi k có một radixTree để lưu “atoms-combinations” size k đã thấy */
+    struct radixTree **rts = (struct radixTree**)calloc(wmax + 1, sizeof(*rts));
+    assert(rts);
 
-	/* Output statistics */
-	elapsed = now() - start;
-	printf("Solution path: ");
-	printf("%s\n", soln);
-	printf("Execution time: %lf\n", elapsed);
-	printf("Expanded nodes: %d\n", dequeued);
-	printf("Generated nodes: %d\n", enqueued);
-	printf("Duplicated nodes: %d\n", duplicatedNodes);
-	int memoryUsage = 0;
-	// Algorithm 2: Memory usage, uncomment to add.
-	// memoryUsage += queryRadixMemoryUsage(radixTree);
-	// Algorithm 3: Memory usage, uncomment to add.
-	// for(int i = 0; i < w; i++) {
-	//	memoryUsage += queryRadixMemoryUsage(rts[i]);
-	// }
-	printf("Auxiliary memory usage (bytes): %d\n", memoryUsage);
-	printf("Number of pieces in the puzzle: %d\n", init_data->num_pieces);
-	printf("Number of steps in solution: %ld\n", strlen(soln)/2);
-	int emptySpaces = 0;
-	/*
-	 * FILL IN: Add empty space check for your solution.
-	 */
-	/* Count spaces in the initial map_save (or map if available) */
-	for (int i = 0; i < init_data->lines; i++) {
-		for (int j = 0; init_data->map_save[i][j] != '\0'; j++) {
-			if (init_data->map_save[i][j] == ' ') emptySpaces++;
-		}
-	}
-	printf("Number of empty spaces: %d\n", emptySpaces);
-	printf("Solved by IW(%d)\n", w);
-	printf("Number of nodes expanded per second: %lf\n", (dequeued + 1) / elapsed);
+    int dequeued_total = 0;
+    int enqueued_total = 0;
+    int duplicated_total = 0;     /* số node bị loại do “không novel” */
+    char *soln = NULL;
+    int solved_w = 0;
 
-	/* Free associated memory. */
-	if(packedMap) {
-		free(packedMap);
-	}
+    double start = now();
 
-	/* Assign solution back to the gate structure */
-	if (soln) {
-		init_data->soln = soln;
-	}
+    /* Duyệt width từ 1 tới wmax */
+    for (int w = 1; w <= wmax; ++w) {
 
-	/* Free initial map. */
-	free_initial_state(init_data);
+        /* Tạo cây novelty cho mọi k <= w nếu chưa có */
+        for (int k = 1; k <= w; ++k) {
+            if (!rts[k]) rts[k] = getNewRadixTree(init_data->num_pieces, height, width);
+        }
+
+        /* Hàng đợi động */
+        int qcap = 1024, qhead = 0, qtail = 0;
+        gate_t **queue = (gate_t**)malloc(sizeof(gate_t*) * qcap);
+
+        /* Nạp root */
+        gate_t *root = duplicate_state(init_data);
+        if (!root->soln) { root->soln = (char*)malloc(1); root->soln[0] = '\0'; }
+
+        memset(packedMap, 0, packedBytes);
+        packMap(root, packedMap);
+        /* Chèn root vào tất cả mức novelty k mà chưa có */
+        for (int k = 1; k <= w; ++k) {
+            if (checkPresentnCr(rts[k], packedMap, k) == NOTPRESENT) {
+                insertRadixTreenCr(rts[k], packedMap, k);
+            }
+        }
+
+        queue[qtail++] = root;
+        int dequeued = 0, enqueued = 1, duplicated = 0;
+        int found = 0;
+
+        while (qhead < qtail) {
+            gate_t *u = queue[qhead++]; dequeued++;
+
+            if (winning_state(*u)) {
+                size_t L = strlen(u->soln);
+                soln = (char*)malloc(L + 1);
+                memcpy(soln, u->soln, L + 1);
+                free_state(u, init_data);
+                found = 1; solved_w = w;
+                break;
+            }
+
+            /* Sinh con: theo thứ tự piece rồi {u,d,l,r} */
+            for (int p = 0; p < init_data->num_pieces; ++p) {
+                char piece = pieceNames[p];
+                for (int di = 0; di < 4; ++di) {
+                    char dir = directions[di];
+
+                    gate_t moved = move_location(*u, piece, dir);
+
+                    /* Non-move: toạ độ miếng p không đổi */
+                    if (moved.piece_x[p] == u->piece_x[p] &&
+                        moved.piece_y[p] == u->piece_y[p]) {
+                        continue;
+                    }
+
+                    gate_t *child = duplicate_state(&moved);
+                    append_move(child, u->soln, piece, dir);
+
+                    memset(packedMap, 0, packedBytes);
+                    packMap(child, packedMap);
+
+                    /* Novelty check: tồn tại k <= w sao cho tổ hợp nCr size k CHƯA thấy? */
+                    int novel_k = 0;
+                    for (int k = 1; k <= w; ++k) {
+                        if (checkPresentnCr(rts[k], packedMap, k) == NOTPRESENT) {
+                            novel_k = k; break;
+                        }
+                    }
+                    if (!novel_k) {
+                        /* Không novel ở mọi k <= w: prune */
+                        duplicated++;
+                        free_state(child, init_data);
+                        continue;
+                    }
+
+                    /* Insert vào cây tại kích thước novel_k */
+                    insertRadixTreenCr(rts[novel_k], packedMap, novel_k);
+
+                    /* Enqueue */
+                    if (qtail >= qcap) {
+                        qcap *= 2;
+                        queue = (gate_t**)realloc(queue, sizeof(gate_t*) * qcap);
+                    }
+                    queue[qtail++] = child; enqueued++;
+                }
+            }
+
+            free_state(u, init_data);
+        }
+
+        /* Dọn queue còn lại nếu đã break vì tìm thấy nghiệm */
+        for (int i = qhead; i < qtail; ++i) if (queue[i]) free_state(queue[i], init_data);
+        free(queue);
+
+        dequeued_total   += dequeued;
+        enqueued_total   += enqueued;
+        duplicated_total += duplicated;
+
+        if (found) break; /* nghiệm đã tìm thấy ở width w */
+    }
+
+    /* Thống kê bộ nhớ novelty trees */
+    int memoryUsage = 0;
+    for (int k = 1; k <= wmax; ++k) {
+        if (rts[k]) {
+            memoryUsage += queryRadixMemoryUsage(rts[k]);
+            freeRadixTree(rts[k]);
+        }
+    }
+    free(rts);
+    free(packedMap);
+
+    double elapsed = now() - start;
+
+    /* In thống kê theo format của bạn */
+    printf("Solution path: %s\n", soln ? soln : "Not Found");
+    printf("Execution time: %lf\n", elapsed);
+    printf("Expanded nodes: %d\n", dequeued_total);
+    printf("Generated nodes: %d\n", enqueued_total);
+    printf("Duplicated nodes: %d\n", duplicated_total);
+    printf("Auxiliary memory usage (bytes): %d\n", memoryUsage);
+    printf("Number of pieces in the puzzle: %d\n", init_data->num_pieces);
+    printf("Number of steps in solution: %ld\n", soln ? (long)strlen(soln)/2 : 0L);
+
+    int emptySpaces = 0;
+    for (int i = 0; i < init_data->lines; ++i)
+        for (int j = 0; init_data->map_save[i][j] != '\0'; ++j)
+            if (init_data->map_save[i][j] == ' ') emptySpaces++;
+    printf("Number of empty spaces: %d\n", emptySpaces);
+
+    printf("Solved by IW(%d)\n", solved_w ? solved_w : (init_data->num_pieces + 1));
+    printf("Number of nodes expanded per second: %lf\n", (dequeued_total + 1) / elapsed);
+
+    if (soln) {
+        init_data->soln = soln;   /* giao lại cho caller để free sau */
+    }
+
+  
+    if (init_data->soln) { free(init_data->soln); init_data->soln = NULL; } 
 }
 
 /**
@@ -652,9 +635,9 @@ void find_solution_algorithm3(gate_t* init_data) {
  */
 void find_solution(gate_t* init_data)
 {
-	find_solution_algorithm1(init_data);
-	//find_solution_algorithm2(init_data);
-	// find_solution_algorithm3(init_data);
+	//find_solution_algorithm1(init_data);
+	find_solution_algorithm2(init_data);
+	//find_solution_algorithm3(init_data);
 }
 /**
  * Given a game state, work out the number of bytes required to store the state.
