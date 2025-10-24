@@ -19,7 +19,6 @@
 #define LEFT 'l'
 #define RIGHT 'r'
 char directions[] = {UP, DOWN, LEFT, RIGHT};
-char invertedDirections[] = {DOWN, UP, RIGHT, LEFT};
 char pieceNames[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
 
 /**
@@ -160,111 +159,67 @@ void free_initial_state(gate_t *init_data) {
 	}
 }
 void find_solution_algorithm1(gate_t* init_data) {
-	/* Location for packedMap. */
-	int packedBytes = getPackedSize(init_data);
-	unsigned char *packedMap = (unsigned char *) calloc(packedBytes, sizeof(unsigned char));
-	assert(packedMap);
+    bool has_won = false;
+    int dequeued = 0;
+    int enqueued = 0;
+    int duplicatedNodes = 0; // luôn 0 với BFS thuần
+    char *soln = NULL;
 
-	bool has_won = false;
-	int dequeued = 0;
-	int enqueued = 0;
-	int duplicatedNodes = 0;
-	char *soln = NULL;
-	double start = now();
-	double elapsed;
-	
-	// Algorithm 1 is a width n + 1 search
-	int w = init_data->num_pieces + 1;
+    double start = now();
 
-	/* Simple BFS */
-	int height = init_data->lines;
-	int width = init_data->num_chars_map / init_data->lines;
-	int atomCount = init_data->num_pieces;
-	int packedSize = packedBytes;
-	unsigned char *curPacked = (unsigned char*)calloc(packedBytes, sizeof(unsigned char));
-	unsigned char *childPacked = (unsigned char*)calloc(packedBytes, sizeof(unsigned char));
-	/* Create initial state copy that owns its resources for queue management */
-	gate_t *start_state = duplicate_state(init_data);
-	/* Ensure starting solution string exists */
-	if (!start_state->soln) {
-		start_state->soln = (char*)malloc(1);
-		start_state->soln[0] = '\0';
-	}
-	/* Simple dynamic queue of gate_t* */
-	int qcap = 1024;
-	int qhead = 0, qtail = 0;
-	gate_t **queue = (gate_t**)malloc(sizeof(gate_t*) * qcap);
-	queue[qtail++] = start_state; enqueued++;
-	/* Search loop */
-	while(qhead < qtail) {
-		gate_t *u = queue[qhead++];
-		dequeued++;
-		/* Check goal */
+    /* Hàng đợi động */
+    int qcap = 1024, qhead = 0, qtail = 0;
+    gate_t **queue = (gate_t**)malloc(sizeof(gate_t*) * qcap);
+
+    /* Trạng thái gốc */
+    gate_t *start_state = duplicate_state(init_data);
+    if (!start_state->soln) {
+        start_state->soln = (char*)malloc(1);
+        start_state->soln[0] = '\0';
+    }
+    queue[qtail++] = start_state; enqueued++;
+
+
+	while (qhead < qtail) {
+		gate_t *u = queue[qhead++]; dequeued++;
+
 		if (winning_state(*u)) {
 			has_won = true;
-			/* Copy solution string out */
-			if (u->soln) {
-				if (soln) free(soln);
-				soln = (char*)malloc(strlen(u->soln) + 1);
-				strcpy(soln, u->soln);
-			}
-			/* free popped state and remaining queue items */
+			size_t L = strlen(u->soln);
+			soln = (char*)malloc(L + 1);
+			memcpy(soln, u->soln, L + 1);
 			free_state(u, init_data);
 			break;
 		}
-		/* Generate successors: iterate pieces then directions */
-		for (int p = 0; p < init_data->num_pieces; p++) {
+
+
+		for (int p = 0; p < init_data->num_pieces; ++p) {
 			char piece = pieceNames[p];
-			for (int d = 0; d < 4; d++) {
+			for (int d = 0; d < 4; ++d) {
 				char dir = directions[d];
-				/* Create child by duplicating u */
+
+				// Tạo bản sao node cha
 				gate_t *v = duplicate_state(u);
-				/* Append move to solution string: piece + dir */
-				int prevLen = v->soln ? strlen(v->soln) : 0;
-				char *newSol = (char*)malloc(prevLen + 3); /* two chars + terminator */
-				if (prevLen > 0) memcpy(newSol, v->soln, prevLen);
-				newSol[prevLen] = piece;
-				newSol[prevLen+1] = dir;
-				newSol[prevLen+2] = '\0';
-				if (v->soln) free(v->soln);
-				v->soln = newSol;
-				/* Correct approach: perform move on a local copy and then overwrite v's contents. */
-				gate_t tmp = *v; /* copy of current duplicated state */
-				/* Actually perform move on tmp */
-				tmp = move_location(tmp, piece, dir);
-				/* Now compare packed representation to see if any change occurred */
-				/* If identical, skip */
-				bool identical = (memcmp(curPacked, childPacked, packedBytes) == 0);
-				if (identical) {
-					/* no state change - drop v */
+
+				// Thực hiện move trực tiếp trên node con
+				gate_t before = *v;
+				*v = move_location(*v, piece, dir);
+
+				// Nếu move không thay đổi vị trí piece p thì bỏ qua
+				if (v->piece_x[p] == u->piece_x[p] && v->piece_y[p] == u->piece_y[p]) {
 					free_state(v, init_data);
 					continue;
 				}
-				
-				/* Create new copies of tmp's maps first (tmp may share pointers with v)
-				then free old storage and attach the new copies to v. */
-				char **new_map = (char**)malloc(sizeof(char*) * tmp.lines);
-				char **new_map_save = (char**)malloc(sizeof(char*) * tmp.lines);
-				for (int i = 0; i < tmp.lines; i++) {
-					new_map[i] = (char*)malloc(strlen(tmp.map[i]) + 1);
-					strcpy(new_map[i], tmp.map[i]);
-					new_map_save[i] = (char*)malloc(strlen(tmp.map_save[i]) + 1);
-					strcpy(new_map_save[i], tmp.map_save[i]);
-				}
-				/* Now free previous v storage */
-				for (int i = 0; i < v->lines; i++) { if (v->map[i]) free(v->map[i]); }
-				for (int i = 0; i < v->lines; i++) { if (v->map_save[i]) free(v->map_save[i]); }
-				free(v->map); free(v->map_save);
-				/* Attach new copies */
-				v->map = new_map;
-				v->map_save = new_map_save;
-				/* Copy scalar fields */
-				v->lines = tmp.lines;
-				v->player_x = tmp.player_x; v->player_y = tmp.player_y;
-				v->num_chars_map = tmp.num_chars_map; v->num_pieces = tmp.num_pieces;
-				for (int i = 0; i < v->num_pieces; i++) { v->piece_x[i] = tmp.piece_x[i]; v->piece_y[i] = tmp.piece_y[i]; }
-				/* Enqueue v */
-				/* Grow queue if necessary */
+
+				// Nối lời giải: soln(parent) + piece + dir
+				size_t prevLen = u->soln ? strlen(u->soln) : 0;
+				if (v->soln) free(v->soln);
+				v->soln = (char*)malloc(prevLen + 3);
+				if (prevLen) memcpy(v->soln, u->soln, prevLen);
+				v->soln[prevLen]   = piece;
+				v->soln[prevLen+1] = dir;
+				v->soln[prevLen+2] = '\0';
+
 				if (qtail >= qcap) {
 					qcap *= 2;
 					queue = (gate_t**)realloc(queue, sizeof(gate_t*) * qcap);
@@ -272,61 +227,46 @@ void find_solution_algorithm1(gate_t* init_data) {
 				queue[qtail++] = v; enqueued++;
 			}
 		}
-		/* Free u after expansion */
+
+		// Đã mở rộng xong u
 		free_state(u, init_data);
 	}
-	/* Clean up queue remainder if not emptied by solution */
-	for (int i = qhead; i < qtail; i++) {
-		if (queue[i]) free_state(queue[i], init_data);
-	}
-	free(queue);
-	if (curPacked) free(curPacked);
-	if (childPacked) free(childPacked);
 
-	/* Output statistics */
-	elapsed = now() - start;
-	printf("Solution path: ");
-	printf("%s\n", soln);
-	printf("Execution time: %lf\n", elapsed);
-	printf("Expanded nodes: %d\n", dequeued);
-	printf("Generated nodes: %d\n", enqueued);
-	printf("Duplicated nodes: %d\n", duplicatedNodes);
-	int memoryUsage = 0;
-	// Algorithm 2: Memory usage, uncomment to add.
-	// memoryUsage += queryRadixMemoryUsage(radixTree);
-	// Algorithm 3: Memory usage, uncomment to add.
-	// for(int i = 0; i < w; i++) {
-	//	memoryUsage += queryRadixMemoryUsage(rts[i]);
-	// }
-	printf("Auxiliary memory usage (bytes): %d\n", memoryUsage);
-	printf("Number of pieces in the puzzle: %d\n", init_data->num_pieces);
-	printf("Number of steps in solution: %ld\n", strlen(soln)/2);
-	int emptySpaces = 0;
-	/*
-	 * FILL IN: Add empty space check for your solution.
-	 */
-	/* Count spaces in the initial map_save (or map if available) */
-	for (int i = 0; i < init_data->lines; i++) {
-		for (int j = 0; init_data->map_save[i][j] != '\0'; j++) {
-			if (init_data->map_save[i][j] == ' ') emptySpaces++;
-		}
-	}
-	printf("Number of empty spaces: %d\n", emptySpaces);
-	printf("Solved by IW(%d)\n", w);
-	printf("Number of nodes expanded per second: %lf\n", (dequeued + 1) / elapsed);
+    /* Dọn phần còn lại nếu thoát giữa chừng */
+    for (int i = qhead; i < qtail; ++i) {
+        if (queue[i]) free_state(queue[i], init_data);
+    }
+    free(queue);
 
-	/* Free associated memory. */
-	if(packedMap) {
-		free(packedMap);
-	}
+    double elapsed = now() - start;
 
-	/* Assign solution back to the gate structure */
-	if (soln) {
-		init_data->soln = soln;
-	}
+    /* In thống kê cho BFS thuần */
+    printf("Solution path: %s\n", soln ? soln : "Not Found");
+    printf("Execution time: %lf\n", elapsed);
+    printf("Expanded nodes: %d\n", dequeued);
+    printf("Generated nodes: %d\n", enqueued);
+    printf("Duplicated nodes: %d\n", duplicatedNodes);     // luôn 0 ở BFS thuần
+    printf("Auxiliary memory usage (bytes): %d\n", 0);     // không dùng radix
+    printf("Number of pieces in the puzzle: %d\n", init_data->num_pieces);
+    printf("Number of steps in solution: %ld\n", soln ? (long)strlen(soln)/2 : 0L);
 
-	/* Free initial map. */
-	free_initial_state(init_data);
+    int emptySpaces = 0;
+    for (int i = 0; i < init_data->lines; ++i)
+        for (int j = 0; init_data->map_save[i][j] != '\0'; ++j)
+            if (init_data->map_save[i][j] == ' ') emptySpaces++;
+    printf("Number of empty spaces: %d\n", emptySpaces);
+
+    /* Với thuật toán 1, đừng in “Solved by IW(w)”; nếu vẫn cần field này: */
+    printf("Solved by IW(%d)\n", init_data->num_pieces + 1);
+
+    printf("Number of nodes expanded per second: %lf\n", (dequeued + 1) / elapsed);
+
+    if (soln) {
+        init_data->soln = soln;   /* giao lại cho caller để giải phóng sau */
+    }
+
+    /* Giải phóng initial state (nếu theo khung đề cần free ở đây) */
+    free_initial_state(init_data);
 }
 
 void find_solution_algorithm2(gate_t* init_data) {
@@ -712,8 +652,8 @@ void find_solution_algorithm3(gate_t* init_data) {
  */
 void find_solution(gate_t* init_data)
 {
-	//find_solution_algorithm1(init_data);
-	find_solution_algorithm2(init_data);
+	find_solution_algorithm1(init_data);
+	//find_solution_algorithm2(init_data);
 	// find_solution_algorithm3(init_data);
 }
 /**

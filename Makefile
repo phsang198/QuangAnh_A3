@@ -83,5 +83,8 @@ runtests:
 	./gate -s test_puzzles/impassable1
 	./gate -s test_puzzles/impassable2
 	./gate -s test_puzzles/impassable3
-
+checkleaks:
+	make fclean
+	make
+	valgrind --leak-check=full --show-leak-kinds=all ./gate test_puzzles/capability1
 .PHONY: all clean fclean re
